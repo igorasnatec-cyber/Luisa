@@ -33,7 +33,7 @@ Abra o `index.html` num editor de texto, procure por `var CONFIG` e altere só o
 |---|---|---|
 | `waNumber` | WhatsApp que recebe os leads (55 + DDD + número, só dígitos) | `5522997315303` |
 | `igUser` | @ do Instagram, sem o @ | `luisaareiss` |
-| `pixelId` | ID do Pixel da Meta | vazio, falta criar |
+| `pixelId` | ID do Pixel da Meta | `1660514022223555` |
 | `leadWebhook` | Link da planilha que recebe os leads (passo a passo abaixo) | vazio |
 | `qualifiedCodes` | Faixas de faturamento consideradas qualificadas | R$ 30–100 mil e R$ 100 mil+ |
 | `spotsPerMonth` | Vagas por mês, que aparece no convite | `5` |
@@ -42,29 +42,32 @@ Abra o `index.html` num editor de texto, procure por `var CONFIG` e altere só o
 
 Sobre o `spotsTaken`: só preencha se o número for real e se alguém for atualizar todo mês.
 
-## 1. Pixel (quando você criar)
+## 1. Pixel (já configurado)
 
-1. No Gerenciador de Eventos, crie o pixel e copie o ID (só números).
-2. Cole o ID em `pixelId: '...'` e salve.
-3. Pronto. O quiz já dispara estes eventos sozinho:
+O pixel **1660514022223555** já está no arquivo. Ele carrega sozinho e dispara um evento para cada etapa do quiz, todos numerados na ordem do funil. Assim, no Gerenciador de Eventos você vê quantas pessoas chegaram em cada etapa e onde elas desistem.
 
 | Evento | Quando dispara | Tipo |
 |---|---|---|
 | `PageView` | Abriu a página | padrão |
-| `QuizStart` | Clicou em "Fazer meu diagnóstico" | personalizado |
-| `QuizStep` | A cada resposta | personalizado |
-| `AxisComplete` | Concluiu cada código | personalizado |
-| `QuizComplete` | Terminou as 14 perguntas | personalizado |
-| `Lead` | Enviou o contato. Leva o status qualificado ou não qualificado e já manda telefone, nome e e-mail para a Meta (correspondência avançada) | padrão |
+| `Quiz_01_Inicio` | Clicou em "Fazer meu diagnóstico" | personalizado |
+| `Quiz_02_P01` a `Quiz_11_P10` | Respondeu cada uma das 10 perguntas do diagnóstico | personalizado |
+| `Quiz_12_Area` | Respondeu a área | personalizado |
+| `Quiz_13_Faturamento` | Respondeu o faturamento | personalizado |
+| `Quiz_14_Marketing` | Respondeu sobre marketing | personalizado |
+| `Quiz_15_Objetivo` | Respondeu o objetivo (chegou no formulário) | personalizado |
+| `Quiz_16_Lead` + `Lead` | **Concluiu:** enviou nome e WhatsApp. O `Lead` é o evento padrão da Meta, com status qualificado ou não qualificado, e manda telefone, nome e e-mail para a Meta reconhecer a pessoa (correspondência avançada) | personalizado + padrão |
 | `QualifiedLead` | Lead com faturamento de R$ 30 mil ou mais | personalizado |
-| `ViewResult` | Viu o resultado | personalizado |
-| `Contact` e `WhatsAppClick` | Clicou para falar no WhatsApp | padrão e personalizado |
+| `Quiz_17_Resultado` | Viu o resultado | personalizado |
+| `Quiz_18_WhatsApp` + `Contact` | Clicou para falar com a Luísa no WhatsApp | personalizado + padrão |
 | `InstagramClick` | Foi para o Instagram | personalizado |
-| `QuizResumed` | Voltou depois e retomou | personalizado |
+| `QuizResumed` | Voltou depois e caiu direto no resultado | personalizado |
+
+Cada etapa conta uma vez por pessoa. Se ela voltar e trocar uma resposta, o evento não dispara de novo e o funil não infla. Todos os eventos levam o parâmetro `ref`, com o nome do anúncio quando a UTM estiver configurada.
 
 **Sugestão de otimização:**
 - Comece a campanha otimizando para **Lead**.
 - Quando juntar uns 50 `QualifiedLead` por semana, crie uma conversão personalizada com esse evento e teste otimizar para ela. Assim a Meta procura mais gente parecida com quem fatura R$ 30 mil ou mais.
+- Para ver o funil: no Gerenciador de Eventos, filtre por "Quiz_" e compare as contagens de `Quiz_01` até `Quiz_18`.
 
 ## 2. Planilha de leads (importante)
 

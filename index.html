@@ -380,7 +380,7 @@ var CONFIG = {
   firstName: 'Luísa',
   waNumber: '5522997315303',          // WhatsApp do fim do funil (só números, com 55)
   igUser: 'luisaareiss',
-  pixelId: '',                         // cole aqui o ID do pixel da Meta quando for criado
+  pixelId: '1660514022223555',         // ID do pixel da Meta
   leadWebhook: '',                     // opcional: URL do Google Apps Script / Make para salvar cada lead numa planilha
   qualifiedCodes: ['f3', 'f4'],        // faixas de faturamento que recebem o convite para a reunião
   spotsPerMonth: 5,                    // capacidade real de novos clientes por mês
@@ -505,6 +505,16 @@ function track(name, params, custom){
     if (custom) fbq('trackCustom', name, params); else fbq('track', name, params);
   }catch(e){}
 }
+/* Funil em etapas numeradas (Quiz_01 ... Quiz_18). Cada etapa dispara uma vez por pessoa,
+   mesmo que ela volte e responda de novo, para o funil não inflar. */
+var fired = {};
+function step(n, name, params){
+  var ev = 'Quiz_' + (n < 10 ? '0' : '') + n + '_' + name;
+  if (fired[ev]) return;
+  fired[ev] = true;
+  params = params || {}; params.etapa = n; params.ref = state.ref;
+  track(ev, params, true);
+}
 
 /* =========================================================================
    Origem do clique (utm) — vai para a mensagem do WhatsApp e para a planilha
@@ -591,12 +601,11 @@ document.addEventListener('click', function(e){
   if (b.hasAttribute('data-q')){
     var i = +b.getAttribute('data-q'), k = +b.getAttribute('data-k'), q = QUESTIONS[i];
     state.a[i] = { k:k, pts: 2 - k, text: q.o[k] };
-    track('QuizStep', { step: 'q' + (i + 1), axis: AXES[q.axis].id, points: 2 - k }, true);
-    if (i % 2 === 1) track('AxisComplete', { axis: AXES[q.axis].id, points: axisScore(q.axis) }, true);
+    step(i + 2, 'P' + (i < 9 ? '0' : '') + (i + 1), { codigo: AXES[q.axis].id, pontos: 2 - k });
   } else {
     var mi = +b.getAttribute('data-m'), j = +b.getAttribute('data-j'), m = QUAL[mi];
     state.qual[m.key] = { text: m.o[j][0], code: m.o[j][1] };
-    track('QuizStep', { step: m.key, answer: m.o[j][1] }, true);
+    step(QUESTIONS.length + 2 + mi, ['Area', 'Faturamento', 'Marketing', 'Objetivo'][mi], { resposta: m.o[j][1] });
   }
   setTimeout(function(){ go(current + 1); }, 220);
 });
@@ -654,7 +663,7 @@ function finish(){
     if (CONFIG.pixelId && typeof fbq !== 'undefined'){
       try{ var ud = { ph: '55' + state.lead.phone, fn: state.lead.first.toLowerCase() }; if (state.lead.email) ud.em = state.lead.email.toLowerCase(); fbq('init', CONFIG.pixelId, ud); }catch(err){}
     }
-    track('QuizComplete', { score: totalScore(), profile: p.title, faturamento: state.qual.fat ? state.qual.fat.code : '', area: state.qual.area ? state.qual.area.code : '', ref: state.ref }, true);
+    step(16, 'Lead', { pontuacao: totalScore(), perfil: p.title, faturamento: state.qual.fat ? state.qual.fat.code : '', area: state.qual.area ? state.qual.area.code : '', qualificado: isQ ? 'sim' : 'nao' });
     track('Lead', { content_name: 'Teste de Narrativa Visual', status: isQ ? 'qualificado' : 'nao_qualificado' });
     if (isQ) track('QualifiedLead', { faturamento: state.qual.fat.code, score: totalScore() }, true);
     sendWebhook();
@@ -665,7 +674,7 @@ function finish(){
   render(flow.indexOf('analyzing'));
   var items = document.querySelectorAll('#steps li'), reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches, t = reduce ? 0 : 650;
   for (var i = 0; i < items.length; i++){ items[i].classList.remove('on'); (function(el, d){ setTimeout(function(){ el.classList.add('on'); }, d); })(items[i], t * (i + 1)); }
-  setTimeout(function(){ go(flow.indexOf('result')); animateResult(); track('ViewResult', { profile: p.title }, true); }, t * (items.length + 1) + (reduce ? 0 : 300));
+  setTimeout(function(){ go(flow.indexOf('result')); animateResult(); step(17, 'Resultado', { perfil: p.title }); }, t * (items.length + 1) + (reduce ? 0 : 300));
 }
 
 /* Envia o lead para uma planilha (opcional) */
@@ -781,7 +790,7 @@ function waMessage(isQ){
 }
 function goWhatsApp(where, isQ){
   track('Contact', { channel: 'whatsapp', qualificado: isQ ? 'sim' : 'nao', ref: state.ref });
-  track('WhatsAppClick', { where: where, profile: profile().title, resumed: state.resumed }, true);
+  step(18, 'WhatsApp', { onde: where, perfil: profile().title, qualificado: isQ ? 'sim' : 'nao', voltou: state.resumed ? 'sim' : 'nao' });
   try{ var d = JSON.parse(sGet('done') || '{}'); d.contacted = true; sSet('done', JSON.stringify(d)); }catch(e){}
   var url = waMessage(isQ);
   setTimeout(function(){ window.location.href = url; }, 250);
@@ -837,7 +846,7 @@ function tryResume(){
   return true;
 }
 function restart(){
-  state.a = {}; state.qual = {}; state.lead = {}; state.sent = false; state.resumed = false; state.started = false;
+  state.a = {}; state.qual = {}; state.lead = {}; state.sent = false; state.resumed = false; state.started = false; fired = {};
   sDel('done'); $('leadForm').reset();
   go(0);
 }
@@ -850,7 +859,8 @@ document.addEventListener('click', function(e){
   if (b && current > 0) history.back();
 });
 $('startBtn').addEventListener('click', function(){
-  if (!state.started){ state.started = true; track('QuizStart', { ref: state.ref }, true); }
+  if (!state.started){ state.started = true; }
+  step(1, 'Inicio');
   go(1);
 });
 $('restartBtn').addEventListener('click', restart);
